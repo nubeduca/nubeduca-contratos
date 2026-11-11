@@ -1,0 +1,26 @@
+{
+  "version": "0",
+  "id": "c7d93e85-b638-4f3c-abe1-5aa297904e2b",
+  "detail-type": "lms.courses.course.published.v1",
+  "source": "lms.courses",
+  "account": "111122223333",
+  "time": "2026-11-14T15:14:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JCK2X29J8TJ8RJ8VPYYEYRPR",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-14T15:14:00Z",
+      "aggregateType": "course",
+      "aggregateId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "aggregateVersion": 2,
+      "courseId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "actorId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "traceparent": "00-c538db929f986d39066baeb422778cab-c538db929f986d39-01"
+    },
+    "data": {
+      "title": "Cloud Computing"
+    }
+  }
+}

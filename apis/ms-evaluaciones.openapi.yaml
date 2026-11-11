@@ -1,0 +1,638 @@
+openapi: 3.0.3
+info:
+  title: nubeduca-ms-evaluaciones
+  version: 1.0.0
+  description: |
+    Tareas, entregas y su calificación (EVA-01).
+
+    Una tarea nace en DRAFT y se publica. Solo los alumnos matriculados entregan, con archivos ya escaneados. Consume enrollment.created/dropped (quién puede entregar) y file.scanned (qué archivos están CLEAN).
+
+    Convenciones de todo Nubeduca:
+    - El tenant sale del claim `custom:tenant_id` del token; nunca va en la ruta ni en el body.
+    - `x-roles`: roles (claim `custom:role`) que pueden llamar la operación. Lista vacía = pública.
+    - `x-emits`: eventos del catálogo (eventos/catalogo.yaml) que la operación publica si termina bien.
+    - `x-task`: tarea del backlog que implementa la operación.
+    - Ids en inglés y camelCase; textos para el usuario en español.
+servers:
+- url: https://{apiId}.execute-api.us-east-1.amazonaws.com/{stage}
+  variables:
+    apiId:
+      default: xxxxxxxxxx
+    stage:
+      default: dev
+      enum:
+      - dev
+      - staging
+      - prod
+security:
+- cognito: []
+tags:
+- name: salud
+  description: Prueba de vida del servicio.
+- name: tareas
+- name: entregas
+paths:
+  /health:
+    get:
+      operationId: evaluacionesHealth
+      summary: Estado del servicio
+      tags:
+      - salud
+      description: Sin autenticación. GATE-0 y la prueba de humo de REL-01 lo llaman después de cada despliegue.
+      responses:
+        '200':
+          description: El servicio responde.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+      x-roles: []
+      x-task: LIB-01
+      security: []
+  /courses/{courseId}/assignments:
+    get:
+      operationId: listAssignments
+      summary: Tareas del curso
+      tags:
+      - tareas
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: Tareas por fecha de entrega. STUDENT solo ve PUBLISHED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: EVA-01
+    post:
+      operationId: createAssignment
+      summary: Crear una tarea en borrador
+      tags:
+      - tareas
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentInput'
+      responses:
+        '201':
+          description: Tarea en DRAFT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      x-task: EVA-01
+  /assignments/{assignmentId}:
+    get:
+      operationId: getAssignment
+      summary: Una tarea
+      tags:
+      - tareas
+      parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^asg_[0-9A-HJKMNP-TV-Z]{26}$
+          example: asg_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Tarea.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: EVA-01
+    patch:
+      operationId: updateAssignment
+      summary: Editar una tarea
+      tags:
+      - tareas
+      description: maxScore no se puede cambiar después de publicar.
+      parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^asg_[0-9A-HJKMNP-TV-Z]{26}$
+          example: asg_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentUpdate'
+      responses:
+        '200':
+          description: Tarea actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      x-task: EVA-01
+  /assignments/{assignmentId}/publish:
+    post:
+      operationId: publishAssignment
+      summary: Publicar la tarea
+      tags:
+      - tareas
+      parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^asg_[0-9A-HJKMNP-TV-Z]{26}$
+          example: asg_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Tarea en PUBLISHED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      x-task: EVA-01
+      x-emits:
+      - lms.assessment.assignment.published.v1
+  /assignments/{assignmentId}/submissions:
+    get:
+      operationId: listSubmissions
+      summary: Entregas de la tarea
+      tags:
+      - entregas
+      parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^asg_[0-9A-HJKMNP-TV-Z]{26}$
+          example: asg_01JCQRZHQT9F4WY2JYPDV546K7
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: 'TEACHER: todas. STUDENT: solo las suyas.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      x-task: EVA-01
+    post:
+      operationId: submit
+      summary: Entregar
+      tags:
+      - entregas
+      description: 409 ARCHIVO_NO_VERIFICADO si algún archivo no está CLEAN; 409 FUERA_DE_PLAZO si venció y allowLate
+        es false.
+      parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^asg_[0-9A-HJKMNP-TV-Z]{26}$
+          example: asg_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionInput'
+      responses:
+        '201':
+          description: Entrega registrada (attempt = entregas previas + 1).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - STUDENT
+      x-task: EVA-01
+      x-emits:
+      - lms.assessment.submission.submitted.v1
+  /submissions/{submissionId}:
+    get:
+      operationId: getSubmission
+      summary: Una entrega
+      tags:
+      - entregas
+      parameters:
+      - name: submissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^sbm_[0-9A-HJKMNP-TV-Z]{26}$
+          example: sbm_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Entrega.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      x-task: EVA-01
+  /submissions/{submissionId}/grade:
+    post:
+      operationId: gradeSubmission
+      summary: Calificar una entrega
+      tags:
+      - entregas
+      description: Se puede volver a calificar. 400 si score > maxScore. El alumno ve la nota recién cuando ms-calificaciones
+        la publica.
+      parameters:
+      - name: submissionId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^sbm_[0-9A-HJKMNP-TV-Z]{26}$
+          example: sbm_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GradeInput'
+      responses:
+        '200':
+          description: Entrega en GRADED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      x-task: EVA-01
+      x-emits:
+      - lms.assessment.submission.graded.v1
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'ID token de Cognito (el access token no trae atributos custom). Claims usados: sub = userId,
+        custom:tenant_id, custom:role.'
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    NextToken:
+      name: nextToken
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Token opaco de la página anterior (LastEvaluatedKey de DynamoDB codificado).
+  responses:
+    BadRequest:
+      description: El body o los parámetros no cumplen el contrato.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Falta el token o no es válido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: El rol del token no puede hacer esto, o el recurso es de otro usuario.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe en este tenant.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: El estado actual no permite la operación (por ejemplo, ya está publicado).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: CURSO_NO_ENCONTRADO
+          description: Código estable en MAYÚSCULAS para que el frontend decida qué mostrar.
+        message:
+          type: string
+          example: No existe el curso en este tenant.
+        requestId:
+          type: string
+          description: Id de la petición en API Gateway, para buscar en CloudWatch.
+      required:
+      - code
+      - message
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+        service:
+          type: string
+        version:
+          type: string
+      required:
+      - status
+      - service
+    AssignmentInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        instructions:
+          type: string
+          maxLength: 20000
+        dueAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+        maxScore:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          example: 20
+        allowLate:
+          type: boolean
+          default: false
+      required:
+      - title
+      - dueAt
+      - maxScore
+    AssignmentUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        instructions:
+          type: string
+          maxLength: 20000
+        dueAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+        allowLate:
+          type: boolean
+    Assignment:
+      allOf:
+      - $ref: '#/components/schemas/AssignmentInput'
+      - type: object
+        properties:
+          assignmentId:
+            type: string
+            pattern: ^asg_[0-9A-HJKMNP-TV-Z]{26}$
+            example: asg_01JCQRZHQT9F4WY2JYPDV546K7
+          courseId:
+            type: string
+            pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+            example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+          status:
+            type: string
+            enum:
+            - DRAFT
+            - PUBLISHED
+        required:
+        - assignmentId
+        - courseId
+        - status
+    AssignmentPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assignment'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken
+    SubmissionInput:
+      type: object
+      properties:
+        fileIds:
+          type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+          items:
+            type: string
+            pattern: ^fil_[0-9A-HJKMNP-TV-Z]{26}$
+            example: fil_01JCQRZHQT9F4WY2JYPDV546K7
+        comment:
+          type: string
+          maxLength: 2000
+      required:
+      - fileIds
+    GradeInput:
+      type: object
+      properties:
+        score:
+          type: number
+          minimum: 0
+          example: 17
+        feedback:
+          type: string
+          maxLength: 5000
+      required:
+      - score
+    Submission:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          pattern: ^sbm_[0-9A-HJKMNP-TV-Z]{26}$
+          example: sbm_01JCQRZHQT9F4WY2JYPDV546K7
+        assignmentId:
+          type: string
+          pattern: ^asg_[0-9A-HJKMNP-TV-Z]{26}$
+          example: asg_01JCQRZHQT9F4WY2JYPDV546K7
+        studentId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          example: a18577e2-e005-4a49-a29e-755dbf08f5b6
+        attempt:
+          type: integer
+          minimum: 1
+        fileIds:
+          type: array
+          items:
+            type: string
+            pattern: ^fil_[0-9A-HJKMNP-TV-Z]{26}$
+            example: fil_01JCQRZHQT9F4WY2JYPDV546K7
+        comment:
+          type: string
+        late:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - SUBMITTED
+          - GRADED
+        score:
+          type: number
+          nullable: true
+        feedback:
+          type: string
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+      required:
+      - submissionId
+      - assignmentId
+      - studentId
+      - attempt
+      - fileIds
+      - late
+      - status
+      - submittedAt
+    SubmissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Submission'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken

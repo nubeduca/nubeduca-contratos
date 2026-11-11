@@ -1,0 +1,909 @@
+openapi: 3.0.3
+info:
+  title: nubeduca-ms-cursos
+  version: 1.0.0
+  description: |
+    Cursos, secciones, matrículas y anuncios (ACA-03, ACA-04, COL-01).
+
+    Un curso nace en DRAFT, pasa a PUBLISHED y termina en ARCHIVED. Los alumnos solo ven cursos PUBLISHED en los que están matriculados. Consume term.started (periodos activos) y user.provisioned (código institucional → userId para la importación CSV).
+
+    Convenciones de todo Nubeduca:
+    - El tenant sale del claim `custom:tenant_id` del token; nunca va en la ruta ni en el body.
+    - `x-roles`: roles (claim `custom:role`) que pueden llamar la operación. Lista vacía = pública.
+    - `x-emits`: eventos del catálogo (eventos/catalogo.yaml) que la operación publica si termina bien.
+    - `x-task`: tarea del backlog que implementa la operación.
+    - Ids en inglés y camelCase; textos para el usuario en español.
+servers:
+- url: https://{apiId}.execute-api.us-east-1.amazonaws.com/{stage}
+  variables:
+    apiId:
+      default: xxxxxxxxxx
+    stage:
+      default: dev
+      enum:
+      - dev
+      - staging
+      - prod
+security:
+- cognito: []
+tags:
+- name: salud
+  description: Prueba de vida del servicio.
+- name: cursos
+- name: secciones
+- name: matriculas
+- name: anuncios
+paths:
+  /health:
+    get:
+      operationId: cursosHealth
+      summary: Estado del servicio
+      tags:
+      - salud
+      description: Sin autenticación. GATE-0 y la prueba de humo de REL-01 lo llaman después de cada despliegue.
+      responses:
+        '200':
+          description: El servicio responde.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+      x-roles: []
+      x-task: LIB-01
+      security: []
+  /courses:
+    get:
+      operationId: listCourses
+      summary: Cursos visibles para mí
+      tags:
+      - cursos
+      parameters:
+      - name: termId
+        in: query
+        required: false
+        schema:
+          type: string
+          pattern: ^trm_[0-9A-HJKMNP-TV-Z]{26}$
+          example: trm_01JCQRZHQT9F4WY2JYPDV546K7
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - PUBLISHED
+          - ARCHIVED
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: 'STUDENT: solo cursos PUBLISHED donde está matriculado. TEACHER: los suyos. ADMIN: todos.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+    post:
+      operationId: createCourse
+      summary: Crear un curso en borrador
+      tags:
+      - cursos
+      description: 409 si el periodo no está ACTIVE o ya existe un curso con ese código en el periodo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseInput'
+      responses:
+        '201':
+          description: Curso en DRAFT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+      x-emits:
+      - lms.courses.course.created.v1
+  /courses/{courseId}:
+    get:
+      operationId: getCourse
+      summary: Un curso
+      tags:
+      - cursos
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Curso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+    patch:
+      operationId: updateCourse
+      summary: Editar título o descripción
+      tags:
+      - cursos
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseUpdate'
+      responses:
+        '200':
+          description: Curso actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+  /courses/{courseId}/publish:
+    post:
+      operationId: publishCourse
+      summary: Publicar el curso
+      tags:
+      - cursos
+      description: 409 si no está en DRAFT.
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Curso en PUBLISHED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+      x-emits:
+      - lms.courses.course.published.v1
+  /courses/{courseId}/archive:
+    post:
+      operationId: archiveCourse
+      summary: Archivar el curso
+      tags:
+      - cursos
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Curso en ARCHIVED (solo lectura).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+      x-emits:
+      - lms.courses.course.archived.v1
+  /courses/{courseId}/sections:
+    get:
+      operationId: listSections
+      summary: Secciones del curso
+      tags:
+      - secciones
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Secciones.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectionList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+    post:
+      operationId: createSection
+      summary: Crear una sección
+      tags:
+      - secciones
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectionInput'
+      responses:
+        '201':
+          description: Sección creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Section'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-03
+  /courses/{courseId}/enrollments:
+    get:
+      operationId: listEnrollments
+      summary: Matriculados del curso
+      tags:
+      - matriculas
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - name: role
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - STUDENT
+          - TEACHER
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: Matrículas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-04
+    post:
+      operationId: createEnrollment
+      summary: Matricular a un usuario
+      tags:
+      - matriculas
+      description: 409 si ya está matriculado o el curso está ARCHIVED.
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentInput'
+      responses:
+        '201':
+          description: Matrícula creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-04
+      x-emits:
+      - lms.courses.enrollment.created.v1
+  /courses/{courseId}/enrollments/import:
+    post:
+      operationId: importEnrollments
+      summary: Matricular desde un CSV
+      tags:
+      - matriculas
+      description: Busca cada código en su proyección de user.provisioned. Las filas con error no detienen la importación.
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema:
+              type: string
+              description: 'Cabecera: institutionalCode,role,section. Hasta 2.000 filas.'
+              example: 'institutionalCode,role,section
+
+                202310457,STUDENT,Sección 1
+
+                '
+      responses:
+        '200':
+          description: Resumen de la importación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-04
+      x-emits:
+      - lms.courses.enrollment.created.v1
+  /courses/{courseId}/enrollments/{enrollmentId}:
+    delete:
+      operationId: dropEnrollment
+      summary: Retirar a un usuario del curso
+      tags:
+      - matriculas
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - name: enrollmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^enr_[0-9A-HJKMNP-TV-Z]{26}$
+          example: enr_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '204':
+          description: Retirado.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-04
+      x-emits:
+      - lms.courses.enrollment.dropped.v1
+  /courses/{courseId}/announcements:
+    get:
+      operationId: listAnnouncements
+      summary: Anuncios del curso
+      tags:
+      - anuncios
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: Anuncios, el más reciente primero.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: COL-01
+    post:
+      operationId: publishAnnouncement
+      summary: Publicar un anuncio
+      tags:
+      - anuncios
+      description: Solo el docente matriculado como TEACHER en el curso. 409 si el curso no está PUBLISHED.
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementInput'
+      responses:
+        '201':
+          description: Anuncio publicado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Announcement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      x-task: COL-01
+      x-emits:
+      - lms.courses.announcement.published.v1
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'ID token de Cognito (el access token no trae atributos custom). Claims usados: sub = userId,
+        custom:tenant_id, custom:role.'
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    NextToken:
+      name: nextToken
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Token opaco de la página anterior (LastEvaluatedKey de DynamoDB codificado).
+  responses:
+    BadRequest:
+      description: El body o los parámetros no cumplen el contrato.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Falta el token o no es válido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: El rol del token no puede hacer esto, o el recurso es de otro usuario.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe en este tenant.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: El estado actual no permite la operación (por ejemplo, ya está publicado).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: CURSO_NO_ENCONTRADO
+          description: Código estable en MAYÚSCULAS para que el frontend decida qué mostrar.
+        message:
+          type: string
+          example: No existe el curso en este tenant.
+        requestId:
+          type: string
+          description: Id de la petición en API Gateway, para buscar en CloudWatch.
+      required:
+      - code
+      - message
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+        service:
+          type: string
+        version:
+          type: string
+      required:
+      - status
+      - service
+    CourseInput:
+      type: object
+      properties:
+        termId:
+          type: string
+          pattern: ^trm_[0-9A-HJKMNP-TV-Z]{26}$
+          example: trm_01JCQRZHQT9F4WY2JYPDV546K7
+          description: Debe ser un periodo ACTIVE.
+        code:
+          type: string
+          pattern: ^[A-Z0-9-]{2,20}$
+          example: CS2032
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Cloud Computing
+        description:
+          type: string
+          maxLength: 2000
+      required:
+      - termId
+      - code
+      - title
+    CourseUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+    Course:
+      allOf:
+      - $ref: '#/components/schemas/CourseInput'
+      - type: object
+        properties:
+          courseId:
+            type: string
+            pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+            example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+          status:
+            type: string
+            enum:
+            - DRAFT
+            - PUBLISHED
+            - ARCHIVED
+          ownerId:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+            example: a18577e2-e005-4a49-a29e-755dbf08f5b6
+            description: Docente que creó el curso.
+          createdAt:
+            type: string
+            format: date-time
+            example: '2026-11-10T15:00:00Z'
+        required:
+        - courseId
+        - status
+        - ownerId
+        - createdAt
+    CoursePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken
+    Section:
+      type: object
+      properties:
+        sectionId:
+          type: string
+          pattern: ^sec_[0-9A-HJKMNP-TV-Z]{26}$
+          example: sec_01JCQRZHQT9F4WY2JYPDV546K7
+        name:
+          type: string
+          maxLength: 40
+          example: Sección 1
+      required:
+      - sectionId
+      - name
+    SectionInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+      required:
+      - name
+    SectionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Section'
+      required:
+      - items
+    EnrollmentInput:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          example: a18577e2-e005-4a49-a29e-755dbf08f5b6
+        role:
+          type: string
+          enum:
+          - STUDENT
+          - TEACHER
+        sectionId:
+          type: string
+          pattern: ^sec_[0-9A-HJKMNP-TV-Z]{26}$
+          example: sec_01JCQRZHQT9F4WY2JYPDV546K7
+      required:
+      - userId
+      - role
+    Enrollment:
+      allOf:
+      - $ref: '#/components/schemas/EnrollmentInput'
+      - type: object
+        properties:
+          enrollmentId:
+            type: string
+            pattern: ^enr_[0-9A-HJKMNP-TV-Z]{26}$
+            example: enr_01JCQRZHQT9F4WY2JYPDV546K7
+          createdAt:
+            type: string
+            format: date-time
+            example: '2026-11-10T15:00:00Z'
+        required:
+        - enrollmentId
+        - createdAt
+    EnrollmentPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Enrollment'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken
+    ImportResult:
+      type: object
+      properties:
+        created:
+          type: integer
+          minimum: 0
+        skipped:
+          type: integer
+          minimum: 0
+          description: Ya estaban matriculados.
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              line:
+                type: integer
+              institutionalCode:
+                type: string
+              code:
+                type: string
+                example: USUARIO_NO_EXISTE
+            required:
+            - line
+            - code
+      required:
+      - created
+      - skipped
+      - errors
+    AnnouncementInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        body:
+          type: string
+          minLength: 1
+          maxLength: 10000
+      required:
+      - title
+      - body
+    Announcement:
+      allOf:
+      - $ref: '#/components/schemas/AnnouncementInput'
+      - type: object
+        properties:
+          announcementId:
+            type: string
+            pattern: ^ann_[0-9A-HJKMNP-TV-Z]{26}$
+            example: ann_01JCQRZHQT9F4WY2JYPDV546K7
+          authorId:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+            example: a18577e2-e005-4a49-a29e-755dbf08f5b6
+          publishedAt:
+            type: string
+            format: date-time
+            example: '2026-11-10T15:00:00Z'
+        required:
+        - announcementId
+        - authorId
+        - publishedAt
+    AnnouncementPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Announcement'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken

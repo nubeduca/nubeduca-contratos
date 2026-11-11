@@ -1,0 +1,538 @@
+openapi: 3.0.3
+info:
+  title: nubeduca-ms-usuarios
+  version: 1.0.0
+  description: |
+    Usuarios, tenants y periodos académicos (ACA-01, ACA-02).
+
+    Un usuario existe en Cognito; este servicio guarda su perfil por tenant. El perfil se crea con POST /users/me justo después del primer login. Los 3 tenants (utec, upc, pucp) los crea poblar_datos.py.
+
+    Convenciones de todo Nubeduca:
+    - El tenant sale del claim `custom:tenant_id` del token; nunca va en la ruta ni en el body.
+    - `x-roles`: roles (claim `custom:role`) que pueden llamar la operación. Lista vacía = pública.
+    - `x-emits`: eventos del catálogo (eventos/catalogo.yaml) que la operación publica si termina bien.
+    - `x-task`: tarea del backlog que implementa la operación.
+    - Ids en inglés y camelCase; textos para el usuario en español.
+servers:
+- url: https://{apiId}.execute-api.us-east-1.amazonaws.com/{stage}
+  variables:
+    apiId:
+      default: xxxxxxxxxx
+    stage:
+      default: dev
+      enum:
+      - dev
+      - staging
+      - prod
+security:
+- cognito: []
+tags:
+- name: salud
+  description: Prueba de vida del servicio.
+- name: tenant
+- name: periodos
+- name: usuarios
+paths:
+  /health:
+    get:
+      operationId: usuariosHealth
+      summary: Estado del servicio
+      tags:
+      - salud
+      description: Sin autenticación. GATE-0 y la prueba de humo de REL-01 lo llaman después de cada despliegue.
+      responses:
+        '200':
+          description: El servicio responde.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+      x-roles: []
+      x-task: LIB-01
+      security: []
+  /tenant:
+    get:
+      operationId: getTenant
+      summary: Datos del tenant del token
+      tags:
+      - tenant
+      responses:
+        '200':
+          description: Tenant actual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-01
+  /terms:
+    get:
+      operationId: listTerms
+      summary: Periodos académicos del tenant
+      tags:
+      - periodos
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: Periodos, el más reciente primero.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-01
+    post:
+      operationId: createTerm
+      summary: Crear un periodo
+      tags:
+      - periodos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TermInput'
+      responses:
+        '201':
+          description: Periodo creado en PLANNED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Term'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - ADMIN
+      x-task: ACA-01
+  /terms/{termId}/start:
+    post:
+      operationId: startTerm
+      summary: Iniciar un periodo
+      tags:
+      - periodos
+      description: 409 si el periodo no está en PLANNED.
+      parameters:
+      - name: termId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^trm_[0-9A-HJKMNP-TV-Z]{26}$
+          example: trm_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Periodo en ACTIVE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Term'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - ADMIN
+      x-task: ACA-01
+      x-emits:
+      - lms.users.term.started.v1
+  /users/me:
+    post:
+      operationId: provisionMe
+      summary: Crear mi perfil si no existe
+      tags:
+      - usuarios
+      description: 'El frontend lo llama justo después del login. Idempotente: nombre, correo y rol salen del token.'
+      responses:
+        '200':
+          description: El perfil ya existía; no se emite evento.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '201':
+          description: Perfil creado (primer login).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-02
+      x-emits:
+      - lms.users.user.provisioned.v1
+    get:
+      operationId: getMe
+      summary: Mi perfil
+      tags:
+      - usuarios
+      responses:
+        '200':
+          description: Perfil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-02
+    patch:
+      operationId: updateMe
+      summary: Actualizar idioma o zona horaria
+      tags:
+      - usuarios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ACA-02
+  /users:
+    get:
+      operationId: listUsers
+      summary: Usuarios del tenant
+      tags:
+      - usuarios
+      parameters:
+      - name: role
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - STUDENT
+          - TEACHER
+          - ADMIN
+      - name: institutionalCode
+        in: query
+        required: false
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: Usuarios, por apellido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-02
+  /users/{userId}:
+    get:
+      operationId: getUser
+      summary: Un usuario
+      tags:
+      - usuarios
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          example: a18577e2-e005-4a49-a29e-755dbf08f5b6
+      responses:
+        '200':
+          description: Usuario.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      - ADMIN
+      x-task: ACA-02
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'ID token de Cognito (el access token no trae atributos custom). Claims usados: sub = userId,
+        custom:tenant_id, custom:role.'
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    NextToken:
+      name: nextToken
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Token opaco de la página anterior (LastEvaluatedKey de DynamoDB codificado).
+  responses:
+    BadRequest:
+      description: El body o los parámetros no cumplen el contrato.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Falta el token o no es válido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: El rol del token no puede hacer esto, o el recurso es de otro usuario.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe en este tenant.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: El estado actual no permite la operación (por ejemplo, ya está publicado).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: CURSO_NO_ENCONTRADO
+          description: Código estable en MAYÚSCULAS para que el frontend decida qué mostrar.
+        message:
+          type: string
+          example: No existe el curso en este tenant.
+        requestId:
+          type: string
+          description: Id de la petición en API Gateway, para buscar en CloudWatch.
+      required:
+      - code
+      - message
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+        service:
+          type: string
+        version:
+          type: string
+      required:
+      - status
+      - service
+    Tenant:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          example: utec
+        name:
+          type: string
+        timeZone:
+          type: string
+          example: America/Lima
+        locale:
+          type: string
+          example: es-PE
+      required:
+      - tenantId
+      - name
+      - timeZone
+      - locale
+    TermInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+          example: 2026-2
+        startsOn:
+          type: string
+          format: date
+          example: '2026-08-17'
+        endsOn:
+          type: string
+          format: date
+          example: '2026-08-17'
+      required:
+      - name
+      - startsOn
+      - endsOn
+    Term:
+      allOf:
+      - $ref: '#/components/schemas/TermInput'
+      - type: object
+        properties:
+          termId:
+            type: string
+            pattern: ^trm_[0-9A-HJKMNP-TV-Z]{26}$
+            example: trm_01JCQRZHQT9F4WY2JYPDV546K7
+          status:
+            type: string
+            enum:
+            - PLANNED
+            - ACTIVE
+            - CLOSED
+        required:
+        - termId
+        - status
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          example: a18577e2-e005-4a49-a29e-755dbf08f5b6
+          description: sub de Cognito.
+        role:
+          type: string
+          enum:
+          - STUDENT
+          - TEACHER
+          - ADMIN
+        institutionalCode:
+          type: string
+          example: '202310457'
+          nullable: true
+        givenName:
+          type: string
+        familyName:
+          type: string
+        email:
+          type: string
+          format: email
+        locale:
+          type: string
+          example: es-PE
+        timeZone:
+          type: string
+          example: America/Lima
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+      required:
+      - userId
+      - role
+      - givenName
+      - familyName
+      - email
+      - createdAt
+    UserUpdate:
+      type: object
+      properties:
+        locale:
+          type: string
+          pattern: ^[a-z]{2}-[A-Z]{2}$
+        timeZone:
+          type: string
+    UserPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken
+    TermPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Term'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken

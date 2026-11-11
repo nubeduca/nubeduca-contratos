@@ -1,0 +1,28 @@
+{
+  "version": "0",
+  "id": "2bb4cf76-89c7-4673-a192-08a0a33d4433",
+  "detail-type": "lms.courses.announcement.published.v1",
+  "source": "lms.courses",
+  "account": "111122223333",
+  "time": "2026-11-18T15:18:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JCWH5ZJ0N9ZK3BENY585282T",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-18T15:18:00Z",
+      "aggregateType": "announcement",
+      "aggregateId": "ann_01JCKK4X66BAZWJXXFM1DC8HPN",
+      "aggregateVersion": 2,
+      "courseId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "actorId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "traceparent": "00-f1d35c15761115345ab9b0fc93298318-f1d35c1576111534-01"
+    },
+    "data": {
+      "announcementId": "ann_01JCKK4X66BAZWJXXFM1DC8HPN",
+      "authorId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "title": "La entrega 1 se mueve al viernes"
+    }
+  }
+}

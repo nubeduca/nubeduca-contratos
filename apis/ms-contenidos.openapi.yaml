@@ -1,0 +1,698 @@
+openapi: 3.0.3
+info:
+  title: nubeduca-ms-contenidos
+  version: 1.0.0
+  description: |
+    Archivos en S3 y módulos de contenido (CON-01, CON-02).
+
+    Los archivos suben directo a S3 con una URL prefirmada; la Lambda nunca recibe el binario. Una Lambda de antivirus se dispara con el evento de S3 y publica file.scanned. Consume course.created y enrollment.created/dropped (quién puede ver el contenido de cada curso).
+
+    Convenciones de todo Nubeduca:
+    - El tenant sale del claim `custom:tenant_id` del token; nunca va en la ruta ni en el body.
+    - `x-roles`: roles (claim `custom:role`) que pueden llamar la operación. Lista vacía = pública.
+    - `x-emits`: eventos del catálogo (eventos/catalogo.yaml) que la operación publica si termina bien.
+    - `x-task`: tarea del backlog que implementa la operación.
+    - Ids en inglés y camelCase; textos para el usuario en español.
+servers:
+- url: https://{apiId}.execute-api.us-east-1.amazonaws.com/{stage}
+  variables:
+    apiId:
+      default: xxxxxxxxxx
+    stage:
+      default: dev
+      enum:
+      - dev
+      - staging
+      - prod
+security:
+- cognito: []
+tags:
+- name: salud
+  description: Prueba de vida del servicio.
+- name: archivos
+- name: modulos
+paths:
+  /health:
+    get:
+      operationId: contenidosHealth
+      summary: Estado del servicio
+      tags:
+      - salud
+      description: Sin autenticación. GATE-0 y la prueba de humo de REL-01 lo llaman después de cada despliegue.
+      responses:
+        '200':
+          description: El servicio responde.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+      x-roles: []
+      x-task: LIB-01
+      security: []
+  /files:
+    post:
+      operationId: requestUpload
+      summary: Pedir una URL para subir un archivo
+      tags:
+      - archivos
+      description: 403 si el usuario no está matriculado en el curso o pide CONTENT sin ser docente. El evento file.scanned
+        lo publica la Lambda de antivirus, no esta operación.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+      responses:
+        '201':
+          description: Archivo en PENDING_UPLOAD y URL prefirmada de 15 minutos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadTicket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: CON-01
+  /files/{fileId}:
+    get:
+      operationId: getFile
+      summary: Estado de un archivo
+      tags:
+      - archivos
+      parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^fil_[0-9A-HJKMNP-TV-Z]{26}$
+          example: fil_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Archivo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: CON-01
+  /files/{fileId}/download:
+    get:
+      operationId: getDownloadLink
+      summary: URL de descarga
+      tags:
+      - archivos
+      description: 409 si el archivo no está CLEAN.
+      parameters:
+      - name: fileId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^fil_[0-9A-HJKMNP-TV-Z]{26}$
+          example: fil_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: URL prefirmada de 5 minutos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadLink'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: CON-01
+  /courses/{courseId}/modules:
+    get:
+      operationId: listModules
+      summary: Módulos del curso
+      tags:
+      - modulos
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Módulos por posición. STUDENT solo ve PUBLISHED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: CON-02
+    post:
+      operationId: createModule
+      summary: Crear un módulo
+      tags:
+      - modulos
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleInput'
+      responses:
+        '201':
+          description: Módulo en DRAFT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Module'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      x-task: CON-02
+  /courses/{courseId}/modules/{moduleId}:
+    get:
+      operationId: getModule
+      summary: Un módulo con sus ítems
+      tags:
+      - modulos
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^mod_[0-9A-HJKMNP-TV-Z]{26}$
+          example: mod_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Módulo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Module'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: CON-02
+    patch:
+      operationId: updateModule
+      summary: Editar título o posición
+      tags:
+      - modulos
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^mod_[0-9A-HJKMNP-TV-Z]{26}$
+          example: mod_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleUpdate'
+      responses:
+        '200':
+          description: Módulo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Module'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-roles:
+      - TEACHER
+      x-task: CON-02
+  /courses/{courseId}/modules/{moduleId}/items:
+    post:
+      operationId: addModuleItem
+      summary: Agregar una página, archivo o enlace
+      tags:
+      - modulos
+      description: 409 si el fileId no está CLEAN.
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^mod_[0-9A-HJKMNP-TV-Z]{26}$
+          example: mod_01JCQRZHQT9F4WY2JYPDV546K7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleItemInput'
+      responses:
+        '201':
+          description: Ítem agregado al final.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      x-task: CON-02
+  /courses/{courseId}/modules/{moduleId}/publish:
+    post:
+      operationId: publishModule
+      summary: Publicar el módulo
+      tags:
+      - modulos
+      description: 409 si ya está publicado o no tiene ítems.
+      parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+      - name: moduleId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^mod_[0-9A-HJKMNP-TV-Z]{26}$
+          example: mod_01JCQRZHQT9F4WY2JYPDV546K7
+      responses:
+        '200':
+          description: Módulo en PUBLISHED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Module'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-roles:
+      - TEACHER
+      x-task: CON-02
+      x-emits:
+      - lms.content.module.published.v1
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'ID token de Cognito (el access token no trae atributos custom). Claims usados: sub = userId,
+        custom:tenant_id, custom:role.'
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    NextToken:
+      name: nextToken
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Token opaco de la página anterior (LastEvaluatedKey de DynamoDB codificado).
+  responses:
+    BadRequest:
+      description: El body o los parámetros no cumplen el contrato.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Falta el token o no es válido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: El rol del token no puede hacer esto, o el recurso es de otro usuario.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe en este tenant.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: El estado actual no permite la operación (por ejemplo, ya está publicado).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: CURSO_NO_ENCONTRADO
+          description: Código estable en MAYÚSCULAS para que el frontend decida qué mostrar.
+        message:
+          type: string
+          example: No existe el curso en este tenant.
+        requestId:
+          type: string
+          description: Id de la petición en API Gateway, para buscar en CloudWatch.
+      required:
+      - code
+      - message
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+        service:
+          type: string
+        version:
+          type: string
+      required:
+      - status
+      - service
+    UploadRequest:
+      type: object
+      properties:
+        courseId:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+        purpose:
+          type: string
+          enum:
+          - CONTENT
+          - SUBMISSION
+          description: 'CONTENT: solo docentes. SUBMISSION: alumnos para sus entregas.'
+        fileName:
+          type: string
+          maxLength: 200
+          example: lab4.pdf
+        contentType:
+          type: string
+          example: application/pdf
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 52428800
+      required:
+      - courseId
+      - purpose
+      - fileName
+      - contentType
+      - sizeBytes
+    UploadTicket:
+      type: object
+      properties:
+        fileId:
+          type: string
+          pattern: ^fil_[0-9A-HJKMNP-TV-Z]{26}$
+          example: fil_01JCQRZHQT9F4WY2JYPDV546K7
+        uploadUrl:
+          type: string
+          format: uri
+        method:
+          type: string
+          enum:
+          - PUT
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Cabeceras que el navegador debe enviar en el PUT a S3.
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+      required:
+      - fileId
+      - uploadUrl
+      - method
+      - headers
+      - expiresAt
+    File:
+      type: object
+      properties:
+        fileId:
+          type: string
+          pattern: ^fil_[0-9A-HJKMNP-TV-Z]{26}$
+          example: fil_01JCQRZHQT9F4WY2JYPDV546K7
+        courseId:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+        purpose:
+          type: string
+          enum:
+          - CONTENT
+          - SUBMISSION
+        fileName:
+          type: string
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+        status:
+          type: string
+          enum:
+          - PENDING_UPLOAD
+          - PENDING_SCAN
+          - CLEAN
+          - INFECTED
+        ownerId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          example: a18577e2-e005-4a49-a29e-755dbf08f5b6
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+      required:
+      - fileId
+      - courseId
+      - purpose
+      - fileName
+      - contentType
+      - sizeBytes
+      - status
+      - ownerId
+      - createdAt
+    DownloadLink:
+      type: object
+      properties:
+        downloadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+      required:
+      - downloadUrl
+      - expiresAt
+    ModuleInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        position:
+          type: integer
+          minimum: 1
+      required:
+      - title
+      - position
+    ModuleUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        position:
+          type: integer
+          minimum: 1
+    ModuleItemInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - PAGE
+          - FILE
+          - LINK
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        body:
+          type: string
+          maxLength: 50000
+          description: Markdown. Solo en PAGE.
+        fileId:
+          type: string
+          pattern: ^fil_[0-9A-HJKMNP-TV-Z]{26}$
+          example: fil_01JCQRZHQT9F4WY2JYPDV546K7
+          description: Solo en FILE. Debe estar CLEAN.
+        url:
+          type: string
+          format: uri
+          description: Solo en LINK.
+      required:
+      - type
+      - title
+    ModuleItem:
+      allOf:
+      - $ref: '#/components/schemas/ModuleItemInput'
+      - type: object
+        properties:
+          itemId:
+            type: string
+            pattern: ^itm_[0-9A-HJKMNP-TV-Z]{26}$
+            example: itm_01JCQRZHQT9F4WY2JYPDV546K7
+          position:
+            type: integer
+        required:
+        - itemId
+        - position
+    Module:
+      allOf:
+      - $ref: '#/components/schemas/ModuleInput'
+      - type: object
+        properties:
+          moduleId:
+            type: string
+            pattern: ^mod_[0-9A-HJKMNP-TV-Z]{26}$
+            example: mod_01JCQRZHQT9F4WY2JYPDV546K7
+          status:
+            type: string
+            enum:
+            - DRAFT
+            - PUBLISHED
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/ModuleItem'
+        required:
+        - moduleId
+        - status
+        - items
+    ModuleList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Module'
+      required:
+      - items

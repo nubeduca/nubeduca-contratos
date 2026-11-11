@@ -1,0 +1,27 @@
+{
+  "version": "0",
+  "id": "95b784a1-84c9-4a96-a392-f6c94c3c6aa1",
+  "detail-type": "lms.users.user.provisioned.v1",
+  "source": "lms.users",
+  "account": "111122223333",
+  "time": "2026-11-12T15:12:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JC6HTF3PYB8X8HHCZDGRPY33",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-12T15:12:00Z",
+      "aggregateType": "user",
+      "aggregateId": "a18577e2-e005-4a49-a29e-755dbf08f5b6",
+      "aggregateVersion": 1,
+      "actorId": "a18577e2-e005-4a49-a29e-755dbf08f5b6",
+      "traceparent": "00-58417daf1349de9331cb7a870ff5fc5a-58417daf1349de93-01"
+    },
+    "data": {
+      "userId": "a18577e2-e005-4a49-a29e-755dbf08f5b6",
+      "role": "STUDENT",
+      "institutionalCode": "202310457"
+    }
+  }
+}

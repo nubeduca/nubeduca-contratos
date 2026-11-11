@@ -1,0 +1,31 @@
+{
+  "version": "0",
+  "id": "2b220816-be67-4c41-a00d-8a9d001613ee",
+  "detail-type": "lms.assessment.submission.graded.v1",
+  "source": "lms.assessment",
+  "account": "111122223333",
+  "time": "2026-11-13T15:23:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JCSZXEYXVCDQTKPBJDDQVWM0",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-13T15:23:00Z",
+      "aggregateType": "submission",
+      "aggregateId": "sbm_01JCY7SYF5X0ZHRJ7KQSVX4BP0",
+      "aggregateVersion": 2,
+      "courseId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "actorId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "traceparent": "00-d37eed5ce9a4ceaae80e5964b5e3c62d-d37eed5ce9a4ceaa-01"
+    },
+    "data": {
+      "submissionId": "sbm_01JCY7SYF5X0ZHRJ7KQSVX4BP0",
+      "assignmentId": "asg_01JCF4SQ7XAMY8HTMRFHAWZ73F",
+      "studentId": "a18577e2-e005-4a49-a29e-755dbf08f5b6",
+      "graderId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "score": 17,
+      "maxScore": 20
+    }
+  }
+}
