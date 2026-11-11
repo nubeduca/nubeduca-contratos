@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "lms.courses.enrollment.dropped.v1",
+  "description": "Se retiró a un usuario del curso. Los consumidores le quitan el acceso. Este esquema describe el campo detail del evento de EventBridge.",
+  "type": "object",
+  "required": [
+    "metadata",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Datos comunes a todos los eventos. Los llena la plantilla de servicio (LIB-01).",
+      "required": [
+        "eventId",
+        "tenantId",
+        "occurredAt",
+        "aggregateType",
+        "aggregateId",
+        "aggregateVersion",
+        "actorId",
+        "courseId"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+          "description": "ULID único del evento. El consumidor lo guarda para descartar duplicados."
+        },
+        "tenantId": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{2,32}$",
+          "description": "Identificador del tenant: utec, upc o pucp. Sale del token, nunca del body."
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Momento del cambio en UTC (ISO 8601)."
+        },
+        "aggregateType": {
+          "type": "string",
+          "enum": [
+            "enrollment"
+          ],
+          "description": "Entidad dueña del cambio: course, enrollment, grade, etc."
+        },
+        "aggregateId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64,
+          "description": "Id de esa entidad."
+        },
+        "aggregateVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Versión de la entidad después del cambio. Sirve para descartar eventos viejos."
+        },
+        "courseId": {
+          "type": "string",
+          "pattern": "^crs_[0-9A-HJKMNP-TV-Z]{26}$",
+          "description": "Curso al que pertenece el cambio. Obligatorio en los eventos de un curso; las reglas y el grupo FIFO lo usan."
+        },
+        "actorId": {
+          "type": "string",
+          "pattern": "^(system|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+          "description": "userId (sub de Cognito) de quien causó el cambio, o system."
+        },
+        "traceparent": {
+          "type": "string",
+          "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$",
+          "description": "Contexto de traza W3C para seguir la petición en X-Ray."
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enrollmentId": {
+          "type": "string",
+          "pattern": "^enr_[0-9A-HJKMNP-TV-Z]{26}$",
+          "description": "Matrícula."
+        },
+        "userId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "description": "Usuario retirado."
+        }
+      },
+      "required": [
+        "enrollmentId",
+        "userId"
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "version": "0",
+  "id": "95f1a9f6-75a8-4f4f-a19c-655ee045c18b",
+  "detail-type": "lms.grading.grade.posted.v1",
+  "source": "lms.grading",
+  "account": "111122223333",
+  "time": "2026-11-15T15:25:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JCMK0PDR72NVMBVR2W0Z2J4Q",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-15T15:25:00Z",
+      "aggregateType": "grade",
+      "aggregateId": "grd_01JCHPYHNDAZZ52VG7CCWED8VE",
+      "aggregateVersion": 2,
+      "courseId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "actorId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "traceparent": "00-720d986c17387084ed9bd126fa208023-720d986c17387084-01"
+    },
+    "data": {
+      "gradeId": "grd_01JCHPYHNDAZZ52VG7CCWED8VE",
+      "gradeItemId": "gri_01JCT5N0SZYHJTPTCBJFF2E1JD",
+      "assignmentId": "asg_01JCF4SQ7XAMY8HTMRFHAWZ73F",
+      "studentId": "a18577e2-e005-4a49-a29e-755dbf08f5b6",
+      "score": 17,
+      "maxScore": 20
+    }
+  }
+}

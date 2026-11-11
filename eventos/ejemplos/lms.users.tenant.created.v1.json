@@ -1,0 +1,27 @@
+{
+  "version": "0",
+  "id": "de63905b-ef3a-4031-a361-4f3a3e99d24d",
+  "detail-type": "lms.users.tenant.created.v1",
+  "source": "lms.users",
+  "account": "111122223333",
+  "time": "2026-11-10T15:10:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JCB7FV64BFKS3ZX0NJD0BXNJ",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-10T15:10:00Z",
+      "aggregateType": "tenant",
+      "aggregateId": "utec",
+      "aggregateVersion": 1,
+      "actorId": "system",
+      "traceparent": "00-66b85b9fdc8a0da7d8deba524809e0c3-66b85b9fdc8a0da7-01"
+    },
+    "data": {
+      "name": "Universidad de Ingeniería y Tecnología",
+      "timeZone": "America/Lima",
+      "locale": "es-PE"
+    }
+  }
+}

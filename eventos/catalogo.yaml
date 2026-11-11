@@ -1,0 +1,142 @@
+# Catálogo de eventos v1 de Nubeduca (fuente de verdad).
+# Cada evento tiene su esquema en esquemas/<detailType>.json y un ejemplo en ejemplos/<detailType>.json.
+# channel: eventbridge = bus lms; eventbridge+sns-fifo = además se publica en el tópico FIFO de notas.
+# emittedBy: solo si el evento no sale de una operación de la API (x-emits en apis/).
+events:
+- detailType: lms.users.tenant.created.v1
+  source: lms.users
+  producer: ms-usuarios
+  consumers: []
+  channel: eventbridge
+  task: ACA-01
+  description: Se creó un tenant (institución). Los 3 tenants los crea el seed.
+  emittedBy: poblar_datos.py
+- detailType: lms.users.term.started.v1
+  source: lms.users
+  producer: ms-usuarios
+  consumers:
+  - ms-cursos
+  channel: eventbridge
+  task: ACA-01
+  description: Empezó un periodo académico. ms-cursos solo crea cursos en periodos activos.
+- detailType: lms.users.user.provisioned.v1
+  source: lms.users
+  producer: ms-usuarios
+  consumers:
+  - ms-cursos
+  - ms-notificaciones
+  channel: eventbridge
+  task: ACA-02
+  description: 'Se creó el perfil de un usuario en su primer login. Sin nombre ni correo: quien los necesite los
+    pide a ms-usuarios o a Cognito.'
+- detailType: lms.courses.course.created.v1
+  source: lms.courses
+  producer: ms-cursos
+  consumers:
+  - ms-contenidos
+  channel: eventbridge
+  task: ACA-03
+  description: Se creó un curso en borrador. ms-contenidos prepara su espacio de módulos.
+- detailType: lms.courses.course.published.v1
+  source: lms.courses
+  producer: ms-cursos
+  consumers:
+  - ms-notificaciones
+  channel: eventbridge
+  task: ACA-03
+  description: El curso pasó de borrador a publicado y los matriculados ya lo ven.
+- detailType: lms.courses.course.archived.v1
+  source: lms.courses
+  producer: ms-cursos
+  consumers: []
+  channel: eventbridge
+  task: ACA-03
+  description: 'El curso se archivó: queda de solo lectura.'
+- detailType: lms.courses.enrollment.created.v1
+  source: lms.courses
+  producer: ms-cursos
+  consumers:
+  - ms-contenidos
+  - ms-evaluaciones
+  - ms-calificaciones
+  - ms-notificaciones
+  channel: eventbridge
+  task: ACA-04
+  description: Un usuario quedó matriculado en un curso, a mano o por importación CSV.
+- detailType: lms.courses.enrollment.dropped.v1
+  source: lms.courses
+  producer: ms-cursos
+  consumers:
+  - ms-contenidos
+  - ms-evaluaciones
+  - ms-calificaciones
+  - ms-notificaciones
+  channel: eventbridge
+  task: ACA-04
+  description: Se retiró a un usuario del curso. Los consumidores le quitan el acceso.
+- detailType: lms.courses.announcement.published.v1
+  source: lms.courses
+  producer: ms-cursos
+  consumers:
+  - ms-notificaciones
+  channel: eventbridge
+  task: COL-01
+  description: El docente publicó un anuncio. ms-notificaciones avisa a los matriculados.
+- detailType: lms.content.file.scanned.v1
+  source: lms.content
+  producer: ms-contenidos
+  consumers:
+  - ms-evaluaciones
+  channel: eventbridge
+  task: CON-01
+  description: Terminó el antivirus de un archivo subido a S3. Solo los archivos CLEAN se pueden descargar o entregar.
+  emittedBy: Lambda de antivirus (evento ObjectCreated de S3)
+- detailType: lms.content.module.published.v1
+  source: lms.content
+  producer: ms-contenidos
+  consumers:
+  - ms-notificaciones
+  channel: eventbridge
+  task: CON-02
+  description: El docente publicó un módulo y los alumnos ya ven su contenido.
+- detailType: lms.assessment.assignment.published.v1
+  source: lms.assessment
+  producer: ms-evaluaciones
+  consumers:
+  - ms-calificaciones
+  - ms-notificaciones
+  channel: eventbridge
+  task: EVA-01
+  description: Se publicó una tarea. ms-calificaciones crea su columna en el libro de notas.
+- detailType: lms.assessment.submission.submitted.v1
+  source: lms.assessment
+  producer: ms-evaluaciones
+  consumers:
+  - ms-notificaciones
+  channel: eventbridge
+  task: EVA-01
+  description: Un alumno entregó una tarea (o una nueva versión de su entrega).
+- detailType: lms.assessment.submission.graded.v1
+  source: lms.assessment
+  producer: ms-evaluaciones
+  consumers:
+  - ms-calificaciones
+  channel: eventbridge
+  task: EVA-01
+  description: El docente calificó una entrega. ms-calificaciones guarda la nota en borrador.
+- detailType: lms.grading.grade.changed.v1
+  source: lms.grading
+  producer: ms-calificaciones
+  consumers: []
+  channel: eventbridge
+  task: EVA-02
+  description: Cambió una nota, por calificación o por ajuste manual. La auditoría (DAT-01) lo guarda sin edición
+    posible.
+- detailType: lms.grading.grade.posted.v1
+  source: lms.grading
+  producer: ms-calificaciones
+  consumers:
+  - ms-notificaciones
+  channel: eventbridge+sns-fifo
+  task: EVA-02
+  description: La nota quedó publicada para el alumno. Va al bus y además a SNS FIFO para llegar en orden por curso.

@@ -1,0 +1,299 @@
+openapi: 3.0.3
+info:
+  title: nubeduca-ms-notificaciones
+  version: 1.0.0
+  description: |
+    Preferencias y avisos por email (ENG-01).
+
+    No publica eventos: consume user.provisioned, course.published, enrollment.created/dropped, announcement.published, module.published, assignment.published y submission.submitted desde su cola SQS, y grade.posted desde su cola SQS FIFO. Los eventos no traen correos: el destinatario se resuelve con Cognito al enviar, y se respeta la preferencia del usuario.
+
+    Convenciones de todo Nubeduca:
+    - El tenant sale del claim `custom:tenant_id` del token; nunca va en la ruta ni en el body.
+    - `x-roles`: roles (claim `custom:role`) que pueden llamar la operación. Lista vacía = pública.
+    - `x-emits`: eventos del catálogo (eventos/catalogo.yaml) que la operación publica si termina bien.
+    - `x-task`: tarea del backlog que implementa la operación.
+    - Ids en inglés y camelCase; textos para el usuario en español.
+servers:
+- url: https://{apiId}.execute-api.us-east-1.amazonaws.com/{stage}
+  variables:
+    apiId:
+      default: xxxxxxxxxx
+    stage:
+      default: dev
+      enum:
+      - dev
+      - staging
+      - prod
+security:
+- cognito: []
+tags:
+- name: salud
+  description: Prueba de vida del servicio.
+- name: preferencias
+- name: avisos
+paths:
+  /health:
+    get:
+      operationId: notificacionesHealth
+      summary: Estado del servicio
+      tags:
+      - salud
+      description: Sin autenticación. GATE-0 y la prueba de humo de REL-01 lo llaman después de cada despliegue.
+      responses:
+        '200':
+          description: El servicio responde.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+      x-roles: []
+      x-task: LIB-01
+      security: []
+  /preferences/me:
+    get:
+      operationId: getMyPreferences
+      summary: Mis preferencias
+      tags:
+      - preferencias
+      responses:
+        '200':
+          description: Preferencias; todo activado por defecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ENG-01
+    put:
+      operationId: putMyPreferences
+      summary: Cambiar mis preferencias
+      tags:
+      - preferencias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Preferences'
+      responses:
+        '200':
+          description: Preferencias guardadas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preferences'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ENG-01
+  /notifications/me:
+    get:
+      operationId: listMyNotifications
+      summary: Avisos que recibí
+      tags:
+      - avisos
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/NextToken'
+      responses:
+        '200':
+          description: Avisos, el más reciente primero.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-roles:
+      - STUDENT
+      - TEACHER
+      - ADMIN
+      x-task: ENG-01
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'ID token de Cognito (el access token no trae atributos custom). Claims usados: sub = userId,
+        custom:tenant_id, custom:role.'
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    NextToken:
+      name: nextToken
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Token opaco de la página anterior (LastEvaluatedKey de DynamoDB codificado).
+  responses:
+    BadRequest:
+      description: El body o los parámetros no cumplen el contrato.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Falta el token o no es válido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: El rol del token no puede hacer esto, o el recurso es de otro usuario.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: No existe en este tenant.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: El estado actual no permite la operación (por ejemplo, ya está publicado).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: CURSO_NO_ENCONTRADO
+          description: Código estable en MAYÚSCULAS para que el frontend decida qué mostrar.
+        message:
+          type: string
+          example: No existe el curso en este tenant.
+        requestId:
+          type: string
+          description: Id de la petición en API Gateway, para buscar en CloudWatch.
+      required:
+      - code
+      - message
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+        service:
+          type: string
+        version:
+          type: string
+      required:
+      - status
+      - service
+    Preferences:
+      type: object
+      properties:
+        email:
+          type: object
+          properties:
+            coursePublished:
+              type: boolean
+              default: true
+            announcements:
+              type: boolean
+              default: true
+            modules:
+              type: boolean
+              default: true
+            assignments:
+              type: boolean
+              default: true
+            submissionReceipts:
+              type: boolean
+              default: true
+            grades:
+              type: boolean
+              default: true
+          required:
+          - coursePublished
+          - announcements
+          - modules
+          - assignments
+          - submissionReceipts
+          - grades
+      required:
+      - email
+    Notification:
+      type: object
+      properties:
+        notificationId:
+          type: string
+          pattern: ^ntf_[0-9A-HJKMNP-TV-Z]{26}$
+          example: ntf_01JCQRZHQT9F4WY2JYPDV546K7
+        type:
+          type: string
+          enum:
+          - COURSE_PUBLISHED
+          - ANNOUNCEMENT
+          - MODULE
+          - ASSIGNMENT
+          - SUBMISSION_RECEIPT
+          - GRADE
+        title:
+          type: string
+        courseId:
+          type: string
+          pattern: ^crs_[0-9A-HJKMNP-TV-Z]{26}$
+          example: crs_01JCQRZHQT9F4WY2JYPDV546K7
+        status:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+          - SKIPPED_BY_PREFERENCE
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-11-10T15:00:00Z'
+      required:
+      - notificationId
+      - type
+      - title
+      - status
+      - createdAt
+    NotificationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        nextToken:
+          type: string
+          nullable: true
+          description: Pásalo en ?nextToken= para la siguiente página. null = no hay más.
+      required:
+      - items
+      - nextToken

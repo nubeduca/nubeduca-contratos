@@ -1,0 +1,31 @@
+{
+  "version": "0",
+  "id": "add98e62-600e-4cac-ae2c-140d18007527",
+  "detail-type": "lms.content.file.scanned.v1",
+  "source": "lms.content",
+  "account": "111122223333",
+  "time": "2026-11-19T15:19:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JC376JAJ71YFPEAF1QH3N1C2",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-19T15:19:00Z",
+      "aggregateType": "file",
+      "aggregateId": "fil_01JC8P2K48BKYRT5ATH3DZDA66",
+      "aggregateVersion": 1,
+      "courseId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "actorId": "system",
+      "traceparent": "00-40734129be1c076976dfa3547a1fa1bc-40734129be1c0769-01"
+    },
+    "data": {
+      "fileId": "fil_01JC8P2K48BKYRT5ATH3DZDA66",
+      "purpose": "SUBMISSION",
+      "result": "CLEAN",
+      "contentType": "application/pdf",
+      "sizeBytes": 482113,
+      "ownerId": "a18577e2-e005-4a49-a29e-755dbf08f5b6"
+    }
+  }
+}

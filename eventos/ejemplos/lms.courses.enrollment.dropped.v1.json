@@ -1,0 +1,27 @@
+{
+  "version": "0",
+  "id": "e2b32992-2256-47e8-a438-40d8e46f66ca",
+  "detail-type": "lms.courses.enrollment.dropped.v1",
+  "source": "lms.courses",
+  "account": "111122223333",
+  "time": "2026-11-17T15:17:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JCSEEPA7P5YD57NDGV8YPHKT",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-17T15:17:00Z",
+      "aggregateType": "enrollment",
+      "aggregateId": "enr_01JC5F0KPBVF7HK1VV8H23JGMW",
+      "aggregateVersion": 2,
+      "courseId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "actorId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "traceparent": "00-d26226bc6988cc305e272d7b9c546cbe-d26226bc6988cc30-01"
+    },
+    "data": {
+      "enrollmentId": "enr_01JC5F0KPBVF7HK1VV8H23JGMW",
+      "userId": "a18577e2-e005-4a49-a29e-755dbf08f5b6"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": "0",
+  "id": "9e20ede5-5f89-4fe5-a743-bd3e688a8434",
+  "detail-type": "lms.assessment.assignment.published.v1",
+  "source": "lms.assessment",
+  "account": "111122223333",
+  "time": "2026-11-11T15:21:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "01JCD154R0KBWWZTF398XQKD7X",
+      "tenantId": "utec",
+      "occurredAt": "2026-11-11T15:21:00Z",
+      "aggregateType": "assignment",
+      "aggregateId": "asg_01JCF4SQ7XAMY8HTMRFHAWZ73F",
+      "aggregateVersion": 2,
+      "courseId": "crs_01JCQRZHQT9F4WY2JYPDV546K7",
+      "actorId": "c62d9930-b473-4b1d-adec-72fdda7cf599",
+      "traceparent": "00-8eb9b35f8b9ce71205f6eb90baa617cc-8eb9b35f8b9ce712-01"
+    },
+    "data": {
+      "assignmentId": "asg_01JCF4SQ7XAMY8HTMRFHAWZ73F",
+      "title": "Laboratorio 4: SQS y DLQ",
+      "dueAt": "2026-11-20T23:59:00Z",
+      "maxScore": 20
+    }
+  }
+}
