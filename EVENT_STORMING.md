@@ -2,6 +2,10 @@
 
 Este es el event storming ya armado para la sesión de ARQ-01: 6 flujos que usan los 16 eventos del catálogo. En la sesión el equipo lo valida o lo corrige. Lo que cambie se actualiza en `eventos/catalogo.yaml` y en `apis/`, y `scripts/validar_contratos.py` confirma que todo sigue cuadrando.
 
+![Arquitectura de solución de Nubeduca en AWS](docs/arquitectura-aws.png)
+
+El diagrama usa los íconos oficiales de AWS; los pasos 4 a 8 son el recorrido de los eventos. Se edita en `docs/arquitectura-aws.drawio` (draw.io / app.diagrams.net).
+
 Cada fila se lee así: un **actor** ejecuta un **comando** (una operación de la API), el comando produce un **evento** y el evento dispara **reacciones** en otros microservicios.
 
 ## 1. Alta de la institución y del usuario

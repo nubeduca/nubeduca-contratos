@@ -5,6 +5,7 @@ Contratos del MVP: 16 eventos y las APIs de los 6 microservicios. Es la salida d
 ```text
 nubeduca-contratos/
 ├── EVENT_STORMING.md          # flujos del MVP: comando → evento → reacción
+├── docs/                      # diagrama de arquitectura en AWS: .png, .svg y .drawio editable
 ├── eventos/
 │   ├── catalogo.yaml          # fuente de verdad: productor, consumidores, canal y tarea de cada evento
 │   ├── esquemas/              # JSON Schema Draft-04 del campo detail de cada evento
@@ -37,6 +38,8 @@ nubeduca-contratos/
 | `lms.grading.grade.changed.v1` | calificaciones | — (la auditoría de DAT-01 lo lee dentro de ms-calificaciones) | bus | EVA-02 |
 | `lms.grading.grade.posted.v1` | calificaciones | notificaciones | bus + SNS FIFO | EVA-02 |
 
+El diagrama de arquitectura con los íconos de AWS está en [EVENT_STORMING.md](EVENT_STORMING.md) y en `docs/`.
+
 "bus" es el bus de EventBridge `lms`. Cada evento tiene una descripción en `catalogo.yaml` y en su esquema.
 
 ## Convenciones
@@ -57,7 +60,8 @@ nubeduca-contratos/
 - **Ids:** `tenantId` es `utec`, `upc` o `pucp`. `userId` es el `sub` de Cognito (UUID). El resto es prefijo + ULID: `trm_` periodo, `crs_` curso, `sec_` sección, `enr_` matrícula, `ann_` anuncio, `fil_` archivo, `mod_` módulo, `itm_` ítem, `asg_` tarea, `sbm_` entrega, `gri_` columna de notas, `grd_` nota, `ntf_` aviso. `eventId` es un ULID sin prefijo.
 - **Idioma:** ids, rutas y campos en inglés y camelCase; textos para el usuario en español.
 - **Tenant y rol:** salen del ID token de Cognito (`custom:tenant_id`, `custom:role`), nunca de la ruta ni del body. En las APIs, `x-roles` dice qué roles pueden llamar cada operación y `x-emits` qué eventos publica.
-- **Esquemas en Draft-04:** EventBridge Schema Registry acepta OpenAPI 3 y JSON Schema Draft 4. Cada esquema es autocontenido (sin `$ref`), así se registra tal cual, archivo por archivo.
+- **Este repo es la única fuente de verdad de los esquemas.** EventBridge Schema Registry no está disponible en AWS Academy Learner Lab: el LabRole no tiene permiso `schemas:CreateRegistry`. Tampoco hace falta, porque el registry no valida los eventos al publicarlos. La validación la hacen la CI de este repo y el productor antes de escribir el evento.
+- **Esquemas en Draft-04 y autocontenidos (sin `$ref`):** es un formato que Schema Registry acepta, así que se podrían registrar tal cual en una cuenta que lo permita.
 
 ## Cómo se publica un evento (para LIB-01)
 
