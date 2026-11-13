@@ -100,7 +100,7 @@
         },
         "score": {
           "type": "number",
-          "minimum": 0
+          "minimum": 1
         },
         "maxScore": {
           "type": "number",
