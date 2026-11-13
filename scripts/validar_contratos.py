@@ -6,7 +6,7 @@
 Revisa:
   Eventos
   - catalogo.yaml: nombres, productor y consumidores válidos, sin duplicados.
-  - Cada evento tiene esquema (Draft-04, el formato que acepta EventBridge Schema Registry) y ejemplo.
+  - Cada evento tiene esquema (Draft-04, autocontenido) y ejemplo.
   - El bloque metadata de cada esquema es el de esquemas/_metadata.json.
   - Cada ejemplo es un evento de EventBridge cuyo detail cumple su esquema.
   - No sobran esquemas ni ejemplos fuera del catálogo.
@@ -92,7 +92,7 @@ def validar_eventos():
             continue
         rel = esquema_path.relative_to(RAIZ)
         if esquema.get("$schema") != "http://json-schema.org/draft-04/schema#":
-            error(rel, "$schema debe ser draft-04 (EventBridge Schema Registry no acepta otro)")
+            error(rel, "$schema debe ser draft-04, como el resto del catálogo")
         if esquema.get("title") != dt:
             error(rel, f"title debe ser {dt}")
         try:
