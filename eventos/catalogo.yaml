@@ -1,6 +1,6 @@
 # Catálogo de eventos v1 de Nubeduca (fuente de verdad).
 # Cada evento tiene su esquema en esquemas/<detailType>.json y un ejemplo en ejemplos/<detailType>.json.
-# channel: eventbridge = bus lms; eventbridge+sns-fifo = además se publica en el tópico FIFO de notas.
+# channel: eventbridge = bus lms-<stage>; eventbridge+sns-fifo = además se publica en el tópico FIFO de notas.
 # emittedBy: solo si el evento no sale de una operación de la API (x-emits en apis/).
 events:
 - detailType: lms.users.tenant.created.v1
