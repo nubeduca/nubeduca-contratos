@@ -62,9 +62,9 @@ nubeduca-contratos/
 ## Cómo se publica un evento (para LIB-01)
 
 1. La Lambda valida `detail` contra el esquema y escribe la entidad y un ítem de outbox en la misma `TransactWriteItems`. El ítem de outbox va en la misma tabla, con `sk = EVENTO#<eventId>` y los atributos `source`, `detailType`, `detail` (JSON) y `ttl` (7 días).
-2. Un EventBridge Pipe lee el Stream de la tabla, deja pasar solo los `INSERT` cuyo `sk` empieza con `EVENTO#` y manda el evento al bus `lms`.
+2. Un EventBridge Pipe lee el Stream de la tabla, deja pasar solo los `INSERT` cuyo `sk` empieza con `EVENTO#` y manda el evento al bus `lms-<stage>`.
 3. `poblar_datos.py` no escribe ítems `EVENTO#`. Así, cargar los 30.000 registros no inunda el bus ni a los consumidores. La única excepción son los 3 `tenant.created`.
-4. `grade.posted` sale además por el tópico SNS FIFO `<stage>-notas.fifo`, con `MessageGroupId = <tenantId>:<courseId>` y `MessageDeduplicationId = eventId`. ms-notificaciones lo lee solo de su cola FIFO, no de una regla del bus, para no mandar dos avisos.
+4. `grade.posted` sale además por el tópico SNS FIFO `nubeduca-<stage>-notas.fifo`, con `MessageGroupId = <tenantId>:<courseId>` y `MessageDeduplicationId = eventId`. ms-notificaciones lo lee solo de su cola FIFO, no de una regla del bus, para no mandar dos avisos.
 
 ## Cómo se consume un evento
 
@@ -105,3 +105,9 @@ ARQ-01 está lista cuando los 6 aprueban el PR. Cada uno revisa lo suyo:
 - [ ] **Dev 4 · Edinson695:** ms-evaluaciones y ms-calificaciones.
 - [ ] **Dev 5 · AIexander-lx:** ms-contenidos y el flujo de archivos con antivirus.
 - [ ] **Dev 6 · Guillermo-Heredia:** ms-notificaciones y que las APIs alcancen para las pantallas de FE-02 y FE-03.
+
+## Autenticación (AUTH-01)
+- El frontend y los servicios usan el **ID token** de Cognito (el access token no trae los atributos custom).
+- Header `Authorization: Bearer <idToken>`. API Gateway también acepta el token solo.
+- Tenant y rol salen de los claims `custom:tenant_id` (utec | upc | pucp) y `custom:role` (STUDENT | TEACHER | ADMIN), nunca del body.
+- Sin token o con token inválido: 401.
